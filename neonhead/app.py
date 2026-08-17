@@ -29,6 +29,7 @@ commands (one JSON object per UDP datagram, or per line over TCP)
   {"type":"demo","on":true,"hold_s":2.0}
   {"type":"gesture","name":"yes"}
   {"type":"config","patch":{"palette":{"contour":"#3FB8C8"}}}
+  {"type":"title","text":"neonhead: /path/to/project"}
   {"type":"quit"}
 
 emotions: """ + ", ".join(EMOTIONS) + """
@@ -68,6 +69,7 @@ class App:
         self.listener = Listener(self.cfg)
         self.running = True
         self.demo: dict | None = None
+        self.window = None  # set once run() creates the glfw window
 
     # -- demo mode -----------------------------------------------------------
 
@@ -146,6 +148,9 @@ class App:
                 self.cfg.apply(patch)
             except Exception as exc:
                 print(f"bad config patch: {exc}", file=sys.stderr)
+        elif kind == "title":
+            if self.window is not None:
+                glfw.set_window_title(self.window, str(msg.get("text", "")))
         elif kind == "quit":
             self.running = False
 
@@ -173,6 +178,11 @@ class App:
     # -- loop --------------------------------------------------------------
 
     def run(self):
+        # Bind the network ports before touching glfw at all: if another
+        # instance already owns them, listener.start() raises SystemExit
+        # and we never open a window for a doomed second instance.
+        where = self.listener.start()
+
         if not glfw.init():
             raise SystemExit("glfw init failed")
         win_cfg = self.cfg["window"]
@@ -186,6 +196,7 @@ class App:
         if not window:
             glfw.terminate()
             raise SystemExit("could not create window")
+        self.window = window
         glfw.make_context_current(window)
         glfw.swap_interval(1 if win_cfg.get("vsync", True) else 0)
         glfw.set_key_callback(window, self._key)
@@ -193,7 +204,6 @@ class App:
         ctx = moderngl.create_context()
         renderer = Renderer(ctx, self.cfg)
 
-        where = self.listener.start()
         if where:
             print(f"listening on udp {where[0]}:{where[1]} / tcp {where[0]}:{where[2]}")
         print(HELP)

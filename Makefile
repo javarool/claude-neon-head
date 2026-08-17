@@ -25,7 +25,7 @@ emotion-joy:
 emotion-sad:
 	$(PY) client.py emotion sad
 
-emotion-doubt:
+emotion-lol:
 	$(PY) client.py emotion lol
 
 emotion-anxiety:
@@ -38,7 +38,7 @@ emotion-neutral:
 	$(PY) client.py emotion neutral
 
 say:
-	$(PY) client.py say "привет, как слышно"
+	$(PY) client.py say "привет, как слышно (lol)"
 
 level:
 	$(PY) client.py level 0.8 0.3

@@ -286,7 +286,7 @@ def build(cfg, rig, width_px: int, height_px: int) -> Frame:
                       B["trail"] * fade * dp * gain, rgb["planet"])
 
     # faint core at the centre of the orbit
-    f.add_dot(cx, cy + orb_y * 0.15, R * H["core_r"] * 2.2,
+    f.add_dot(cx, cy * 1.22 + orb_y, R * H["core_r"] * 2,
               B["core"] * p["core_glow"] * gain * 0.35, rgb["core"])
 
     # ---- eyes ----

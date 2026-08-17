@@ -10,6 +10,7 @@
     python client.py demo 2.0
     python client.py demo off
     python client.py gesture yes
+    python client.py title "neonhead: /home/me/project"
     python client.py raw '{"type":"viseme","shape":"D"}'
 
 Or from Python:
@@ -64,6 +65,9 @@ class Head:
 
     def gesture(self, name):
         self.send(type="gesture", name=name)
+
+    def title(self, text):
+        self.send(type="title", text=text)
 
 
 def _nest(dotted: str, value):
@@ -135,6 +139,8 @@ def main(argv):
             head.demo(on=True, hold_s=float(arg))
     elif cmd == "gesture":
         head.gesture(rest[0])
+    elif cmd == "title":
+        head.title(" ".join(rest))
     elif cmd == "raw":
         head.sock.sendto(rest[0].encode("utf-8"), head.addr)
     else:
