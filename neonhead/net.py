@@ -22,8 +22,30 @@ class Listener:
         host = self.cfg.get("net.host", "127.0.0.1")
         udp = int(self.cfg.get("net.udp_port", 9955))
         tcp = int(self.cfg.get("net.tcp_port", 9956))
-        for target, args in ((self._udp, (host, udp)), (self._tcp, (host, tcp))):
-            th = threading.Thread(target=target, args=args, daemon=True)
+
+        # Bind synchronously, on the caller's thread, so a port already
+        # held by another neonhead instance fails loudly right here -
+        # before a window ever opens - instead of dying quietly inside a
+        # daemon thread later. Callers (app.py) should let SystemExit
+        # propagate before creating the window.
+        udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        tcp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            udp_sock.bind((host, udp))
+            tcp_sock.bind((host, tcp))
+        except OSError as exc:
+            udp_sock.close()
+            tcp_sock.close()
+            raise SystemExit(
+                f"neonhead: port {udp}/{tcp} already in use on {host} "
+                f"(another instance already running?) - {exc}"
+            )
+        tcp_sock.listen(4)
+
+        for target, sock in ((self._udp, udp_sock), (self._tcp, tcp_sock)):
+            th = threading.Thread(target=target, args=(sock,), daemon=True)
             th.start()
             self.threads.append(th)
         return host, udp, tcp
@@ -53,10 +75,7 @@ class Listener:
                 if isinstance(m, dict):
                     self.q.put(m)
 
-    def _udp(self, host, port):
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind((host, port))
+    def _udp(self, s):
         s.settimeout(0.4)
         while not self._stop.is_set():
             try:
@@ -68,11 +87,7 @@ class Listener:
             self._push(data)
         s.close()
 
-    def _tcp(self, host, port):
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind((host, port))
-        s.listen(4)
+    def _tcp(self, s):
         s.settimeout(0.4)
         while not self._stop.is_set():
             try:

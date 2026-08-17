@@ -195,6 +195,20 @@ def _eye_outline(cx, cy, w, h, gaze, slant, n=26):
     return pts.astype(np.float32)
 
 
+def _cross(cx, cy, half):
+    """Two crossing strokes — the `eye_dead` X, drawn over the collapsed lid."""
+    return (
+        np.array([[cx - half, cy - half], [cx + half, cy + half]], np.float32),
+        np.array([[cx - half, cy + half], [cx + half, cy - half]], np.float32),
+    )
+
+
+def _letter_z(cx, cy, half):
+    """A single 'Z' as one open polyline: top bar, diagonal, bottom bar."""
+    return np.array([[cx - half, cy - half], [cx + half, cy - half],
+                     [cx - half, cy + half], [cx + half, cy + half]], np.float32)
+
+
 def _brow(cx, cy, hw, tilt, bend, mirror, n=16):
     """Quadratic arc. `tilt` > 0 drops the inner end — the anger tell."""
     inner_dx = hw if not mirror else -hw
@@ -286,7 +300,7 @@ def build(cfg, rig, width_px: int, height_px: int) -> Frame:
                       B["trail"] * fade * dp * gain, rgb["planet"])
 
     # faint core at the centre of the orbit
-    f.add_dot(cx, cy + orb_y * 0.15, R * H["core_r"] * 2.2,
+    f.add_dot(cx, cy * 1.22 + orb_y, R * H["core_r"] * 2,
               B["core"] * p["core_glow"] * gain * 0.35, rgb["core"])
 
     # ---- eyes ----
@@ -294,19 +308,30 @@ def build(cfg, rig, width_px: int, height_px: int) -> Frame:
     eh = R * H["eye_dome"] * max(0.02, p["eye_h"])
     ey = cy + R * H["eye_y"] + p["eye_gaze_y"] * R * 0.02
     sep = R * H["eye_sep"]
+    dead = max(0.0, min(1.0, p["eye_dead"]))
     for sign in (-1.0, 1.0):
         ex = cx + sign * sep
         slant = p["eye_slant"] * (-sign)
         outline = _eye_outline(ex, ey, ew, eh, p["eye_gaze_x"], slant)
-        # white sclera first, then the pupil, then the glowing rim
-        f.add_poly(outline, rgb["sclera"], 1.0)
-        pr = min(R * H["pupil_r"], eh * 0.42, ew * 0.55)
-        if eh > R * H["eye_dome"] * 0.18 and pr > 0.6:
-            px = ex + p["eye_gaze_x"] * ew * 0.34
-            py = ey - eh * 0.46
-            f.add_disc(px, py, pr, rgb["pupil"], 1.0)
-        f.add_ribbon(outline, W["features"], B["features"] * gain,
-                     rgb["features"], closed=True)
+        # white sclera first, then the pupil, then the glowing rim — all
+        # fade out as eye_dead comes in, so a dead eye is X-only, not a
+        # closed lid with an X drawn over it (that's what `sleep` is for)
+        if dead < 0.99:
+            f.add_poly(outline, rgb["sclera"], 1.0 - dead)
+            pr = min(R * H["pupil_r"], eh * 0.42, ew * 0.55)
+            if eh > R * H["eye_dome"] * 0.18 and pr > 0.6:
+                px = ex + p["eye_gaze_x"] * ew * 0.34
+                py = ey - eh * 0.46
+                f.add_disc(px, py, pr, rgb["pupil"], 1.0 - dead)
+            f.add_ribbon(outline, W["features"], B["features"] * gain * (1.0 - dead),
+                         rgb["features"], closed=True)
+        # dead: an X fades in in its place, sized off the base eye radius
+        # so it doesn't shrink along with the (now-irrelevant) eye_h dome
+        if dead > 0.01:
+            half = R * H["eye_w"] * 0.42
+            for stroke in _cross(ex, ey, half):
+                f.add_ribbon(stroke, W["features"], B["features"] * gain * dead,
+                             rgb["features"])
 
     # ---- brows ----
     bw = R * H["brow_w"]
@@ -343,4 +368,16 @@ def build(cfg, rig, width_px: int, height_px: int) -> Frame:
 
     f.add_ribbon(loop, W["features"], B["features"] * gain,
                  rgb["features"], closed=True)
+
+    # ---- zzz: three drifting "Z"s, sleep's tell ----
+    zzz = p["zzz"]
+    if zzz > 0.01:
+        for i in range(3):
+            ph = (rig.t * 0.35 + i / 3.0) % 1.0
+            size = R * (0.045 + 0.02 * i)
+            zx = cx + R * 0.40 + ph * R * 0.22
+            zy = cy - R * 0.55 - ph * R * 0.30 - i * R * 0.02
+            fade = zzz * min(1.0, ph * 6.0) * min(1.0, (1.0 - ph) * 3.0)
+            f.add_ribbon(_letter_z(zx, zy, size), W["features"] * 0.75,
+                         B["features"] * gain * fade, rgb["features"])
     return f

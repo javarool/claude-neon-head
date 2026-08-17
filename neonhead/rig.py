@@ -29,14 +29,14 @@ from .gestures import GESTURES, GESTURE_ALIASES
 
 VISEMES: Dict[str, tuple] = {
     "X": (0.00, 0.50, 0.00),   # silence
-    "A": (0.00, 0.42, -0.10),  # м б п
-    "B": (0.15, 0.78, 0.00),   # с з т д н к и ы
-    "C": (0.45, 0.60, 0.00),   # э е
-    "D": (0.90, 0.55, 0.00),   # а я
-    "E": (0.70, 0.30, 0.00),   # о ё
-    "F": (0.45, 0.18, 0.00),   # у ю
-    "G": (0.20, 0.62, -0.20),  # ф в
-    "H": (0.50, 0.50, 0.00),   # л р
+    "A": (0.00, 0.42, -0.10),  # m b p
+    "B": (0.15, 0.78, 0.00),   # s z t d n k i y
+    "C": (0.45, 0.60, 0.00),   # e (front)
+    "D": (0.90, 0.55, 0.00),   # a
+    "E": (0.70, 0.30, 0.00),   # o
+    "F": (0.45, 0.18, 0.00),   # u
+    "G": (0.20, 0.62, -0.20),  # f v
+    "H": (0.50, 0.50, 0.00),   # l r
 }
 
 # Russian grapheme -> viseme. Good enough for a stylised head; Russian
@@ -54,17 +54,20 @@ NEUTRAL: Dict[str, float] = {
     "ring_spread": 1.00, "ring_tilt": 0.0,
     # eyes
     "eye_h": 1.00, "eye_slant": 0.0, "eye_gaze_x": 0.0, "eye_gaze_y": 0.0,
-    "eye_w": 1.00,
+    "eye_w": 1.00, "eye_dead": 0.0, "eye_dart": 0.0,
     # brows (left / right kept separate — asymmetry is the cheapest nuance)
     "brow_y_l": 0.0, "brow_y_r": 0.0,
     "brow_tilt_l": 0.0, "brow_tilt_r": 0.0,
     "brow_bend_l": 0.0, "brow_bend_r": 0.0,
     # mouth
     "mouth_ap": 0.0, "mouth_w": 0.50, "mouth_curve": 0.05, "mouth_smile": 0.0,
+    "mouth_open": 0.0, "mouth_narrow": 0.0,
+    # idle
+    "blink_rate": 1.0,
     # orbit / core
-    "orbit_r": 0.0, "orbit_speed": 1.0, "core_glow": 1.0,
+    "orbit_r": 0.0, "orbit_speed": 1.0, "core_glow": 1.0, "orbit_still": 0.0,
     # global
-    "head_yaw": 0.0, "head_pitch": 0.0, "glow_gain": 0.0,
+    "head_yaw": 0.0, "head_pitch": 0.0, "glow_gain": 0.0, "zzz": 0.0,
 }
 
 
@@ -206,8 +209,11 @@ class Rig:
                 blink = 1.0 - (d - 0.06) / 0.09
             else:
                 self._blink_phase = -1.0
+                # self.p is last frame's smoothed values, one frame stale —
+                # fine for a rate multiplier, not worth reordering for
+                rate = max(0.2, self.p.get("blink_rate", 1.0))
                 self._blink_at = self.t + random.uniform(
-                    idle["blink_min_s"], idle["blink_max_s"])
+                    idle["blink_min_s"], idle["blink_max_s"]) / rate
         elif self.t >= self._blink_at:
             self._blink_phase = 0.0
         if self.silence_t > 0.30 and self._blink_phase < 0 and random.random() < dt * 0.6:
@@ -232,6 +238,11 @@ class Rig:
         p["core_glow"] = 0.30 + 0.70 * rms + 0.25 * emo.get("glow_gain", 0.0)
         p["eye_h"] = max(0.02, p["eye_h"] * (1.0 - blink) + 0.02 * blink)
         p["eye_gaze_x"] += math.sin(self.t * 0.13) * 0.35 + math.sin(self.t * 0.41) * 0.1
+        dart = emo.get("eye_dart", 0.0)
+        if dart:
+            # a snapping square wave, not a smooth sine — darts side to
+            # side rather than drifting, the anxious "checking exits" look
+            p["eye_gaze_x"] += dart * math.copysign(1.0, math.sin(self.t * 6.0))
         p["brow_y_l"] += max(-0.6, min(0.9, f0 * 0.5))
         p["brow_y_r"] += max(-0.6, min(0.9, f0 * 0.5))
         p["head_yaw"] = yaw * sway
@@ -248,10 +259,16 @@ class Rig:
                 edge = min(1.0, g["t"] / 0.12) * min(1.0, (g["dur"] - g["t"]) / 0.12)
                 p[g["axis"]] += math.sin(g["t"] / g["period"] * math.tau) * g["amp"] * edge
 
-        # visemes own the mouth
+        # visemes own the mouth — but a resting emotion still needs to be
+        # able to hold a mouth pose (surprise's gasp, dead's slack jaw,
+        # anxiety's pursed "o") without speech visemes ever running, so
+        # mouth_open/mouth_narrow are emotion-only channels that add on top
+        # rather than being overwritten, same pattern as glow_gain feeding
+        # core_glow below.
         ap, w, curve = self._vis
-        p["mouth_ap"] = ap * (0.55 + 0.45 * min(1.0, rms * 1.6))
-        p["mouth_w"] = w
+        p["mouth_ap"] = max(0.0, emo.get("mouth_open", 0.0)
+                            + ap * (0.55 + 0.45 * min(1.0, rms * 1.6)))
+        p["mouth_w"] = max(0.05, w + emo.get("mouth_narrow", 0.0))
         p["mouth_curve"] += curve
         p["mouth_smile"] = emo.get("mouth_smile", 0.0)
 
@@ -267,12 +284,15 @@ class Rig:
         for i, mult in enumerate((1.0, 0.618, 0.382)):
             self.spin[i] = (self.spin[i] + dt * base * mult) % (math.pi * 2)
 
-        # orbiting planet — the nose
-        period = idle["orbit_period_s"]
-        if self.silence_t > idle["bored_after_s"]:
-            bored = min(1.0, (self.silence_t - idle["bored_after_s"]) / 8.0)
-            period = _lerp(period, idle["orbit_idle_period_s"], bored)
-        period /= max(0.15, self.p["orbit_speed"] * (1.0 - 0.45 * rms))
-        self.orbit_phase = (self.orbit_phase + dt * math.tau / period) % math.tau
-        self.precession = (self.precession
-                           + dt * math.tau / idle["precession_period_s"]) % math.tau
+        # orbiting planet — the nose. `orbit_still` (e.g. the `dead` preset)
+        # freezes it in place instead of merely slowing it, since orbit_speed
+        # can only ever approach zero asymptotically via the divide below.
+        if self.p["orbit_still"] < 0.5:
+            period = idle["orbit_period_s"]
+            if self.silence_t > idle["bored_after_s"]:
+                bored = min(1.0, (self.silence_t - idle["bored_after_s"]) / 8.0)
+                period = _lerp(period, idle["orbit_idle_period_s"], bored)
+            period /= max(0.15, self.p["orbit_speed"] * (1.0 - 0.45 * rms))
+            self.orbit_phase = (self.orbit_phase + dt * math.tau / period) % math.tau
+            self.precession = (self.precession
+                               + dt * math.tau / idle["precession_period_s"]) % math.tau

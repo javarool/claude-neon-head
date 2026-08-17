@@ -1,5 +1,5 @@
 NAME = "fear"
-ALIASES = ("страх",)
+ALIASES = ("fright",)
 
 # Brows shoot up and pull together, eyes go wide, mouth stretches thin and
 # down — stronger and more symmetric than anxiety's held-breath version.

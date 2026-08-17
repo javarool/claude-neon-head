@@ -22,26 +22,36 @@ commands (one JSON object per UDP datagram, or per line over TCP)
   {"type":"emotion","name":"anger","weight":1.0,"blend_ms":250}
   {"type":"viseme","shape":"D"}
   {"type":"level","rms":0.7,"f0":0.3}
-  {"type":"say","text":"привет, я слушаю"}
-  {"type":"speak","timeline":"out.json","wav":"out.wav"}
+  {"type":"say","text":"Hello, I'm here!","seconds":2.0,"repeat":3,"pause_s":0.4}
+  {"type":"speak","timeline":"timeline.json","wav":"audio.wav"}
   {"type":"set","params":{"eye_gaze_x":-0.8,"brow_y_l":0.6}}
   {"type":"clear"}
   {"type":"demo","on":true,"hold_s":2.0}
   {"type":"gesture","name":"yes"}
   {"type":"config","patch":{"palette":{"contour":"#3FB8C8"}}}
+  {"type":"title","text":"neonhead: /path/to/project"}
   {"type":"quit"}
 
 emotions: """ + ", ".join(EMOTIONS) + """
 gestures: """ + ", ".join(GESTURES) + """
-keys: 1..9 emotions, d demo (cycles every emotion), y/n gestures,
+keys: left/right browse emotions, tab demo (cycles every emotion), y/n gestures,
       space test phrase, c clear, esc quit
 """
 
 _EMO_KEYS = list(EMOTIONS)
 
 
-def text_to_timeline(text: str, cps: float = 12.0) -> dict:
-    """Rough viseme schedule straight from text, for testing without audio."""
+def text_to_timeline(text: str, cps: float = 12.0, seconds: float | None = None) -> dict:
+    """Rough viseme schedule straight from text, for testing without audio.
+
+    `seconds`, if given, overrides `cps` to stretch/compress the whole phrase
+    to that duration (two passes: one to measure at the given cps, one at
+    the rescaled cps - `dur` is linear in `1/cps` so a single ratio suffices).
+    """
+    if seconds is not None and seconds > 0:
+        probe = text_to_timeline(text, cps)
+        if probe["duration"] > 0:
+            cps = cps * probe["duration"] / seconds
     t = 0.0
     visemes = []
     rms = []
@@ -60,6 +70,30 @@ def text_to_timeline(text: str, cps: float = 12.0) -> dict:
                         "f0": [math.sin(i * 0.07) * 0.5 for i in range(len(rms))]}}
 
 
+def repeat_timeline(tl: dict, times: int = 3, pause_s: float = 0.4) -> dict:
+    """Concatenate a timeline with itself `times` times, silent gaps between -
+    a subtle single mouth-flash reaction is easy to miss, saying it 3x makes
+    it register without needing an OS-level notification."""
+    hop = tl["prosody"]["hop"]
+    pause_steps = max(0, int(pause_s / hop))
+    visemes = []
+    rms: list[float] = []
+    f0: list[float] = []
+    t = 0.0
+    for i in range(times):
+        for v in tl["visemes"]:
+            visemes.append({"t": round(t + v["t"], 4), "shape": v["shape"]})
+        rms.extend(tl["prosody"]["rms"])
+        f0.extend(tl["prosody"]["f0"])
+        t += tl["duration"]
+        if i < times - 1:
+            rms.extend([0.0] * pause_steps)
+            f0.extend([0.0] * pause_steps)
+            t += pause_steps * hop
+    return {"visemes": visemes, "duration": t,
+            "prosody": {"hop": hop, "rms": rms, "f0": f0}}
+
+
 class App:
     def __init__(self, config_path: str | None = None):
         self.cfg = Config.load(config_path)
@@ -68,6 +102,8 @@ class App:
         self.listener = Listener(self.cfg)
         self.running = True
         self.demo: dict | None = None
+        self.window = None  # set once run() creates the glfw window
+        self._emo_idx = 0   # cursor for the arrow-key next/prev emotion browser
 
     # -- demo mode -----------------------------------------------------------
 
@@ -121,8 +157,11 @@ class App:
             self.rig.f0 = max(-2.0, min(2.0, float(msg.get("f0", 0.0))))
             self.rig.speaking = self.rig.rms > 0.04
         elif kind == "say":
-            self.player.load_data(text_to_timeline(str(msg.get("text", "")),
-                                                   float(msg.get("cps", 12.0))),
+            tl = text_to_timeline(str(msg.get("text", "")),
+                                  float(msg.get("cps", 12.0)),
+                                  msg.get("seconds"))
+            self.player.load_data(repeat_timeline(tl, int(msg.get("repeat", 3)),
+                                                  float(msg.get("pause_s", 0.4))),
                                   None, False)
         elif kind == "speak":
             tl = msg.get("timeline")
@@ -146,6 +185,9 @@ class App:
                 self.cfg.apply(patch)
             except Exception as exc:
                 print(f"bad config patch: {exc}", file=sys.stderr)
+        elif kind == "title":
+            if self.window is not None:
+                glfw.set_window_title(self.window, str(msg.get("text", "")))
         elif kind == "quit":
             self.running = False
 
@@ -156,23 +198,29 @@ class App:
             self.running = False
         elif key == glfw.KEY_SPACE:
             self.handle({"type": "say",
-                         "text": "привет, я тебя слышу и говорю с интонацией"})
+                         "text": "hello, I can hear you and I'm speaking with intonation"})
         elif key == glfw.KEY_C:
             self.handle({"type": "clear"})
-        elif key == glfw.KEY_D:
+        elif key == glfw.KEY_TAB:
             self.handle({"type": "demo", "on": self.demo is None})
         elif key == glfw.KEY_Y:
             self.handle({"type": "gesture", "name": "yes"})
         elif key == glfw.KEY_N:
             self.handle({"type": "gesture", "name": "no"})
-        elif glfw.KEY_1 <= key <= glfw.KEY_9:
-            i = key - glfw.KEY_1
-            if i < len(_EMO_KEYS):
-                self.handle({"type": "emotion", "name": _EMO_KEYS[i]})
+        elif key in (glfw.KEY_LEFT, glfw.KEY_RIGHT):
+            # more emotions than number keys, and digits get in the way of
+            # typing over the same terminal — browse instead of hotkey
+            self._emo_idx = (self._emo_idx + (1 if key == glfw.KEY_RIGHT else -1)) % len(_EMO_KEYS)
+            self.handle({"type": "emotion", "name": _EMO_KEYS[self._emo_idx]})
 
     # -- loop --------------------------------------------------------------
 
     def run(self):
+        # Bind the network ports before touching glfw at all: if another
+        # instance already owns them, listener.start() raises SystemExit
+        # and we never open a window for a doomed second instance.
+        where = self.listener.start()
+
         if not glfw.init():
             raise SystemExit("glfw init failed")
         win_cfg = self.cfg["window"]
@@ -186,6 +234,7 @@ class App:
         if not window:
             glfw.terminate()
             raise SystemExit("could not create window")
+        self.window = window
         glfw.make_context_current(window)
         glfw.swap_interval(1 if win_cfg.get("vsync", True) else 0)
         glfw.set_key_callback(window, self._key)
@@ -193,7 +242,6 @@ class App:
         ctx = moderngl.create_context()
         renderer = Renderer(ctx, self.cfg)
 
-        where = self.listener.start()
         if where:
             print(f"listening on udp {where[0]}:{where[1]} / tcp {where[0]}:{where[2]}")
         print(HELP)

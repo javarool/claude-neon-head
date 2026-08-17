@@ -25,7 +25,7 @@ emotion-joy:
 emotion-sad:
 	$(PY) client.py emotion sad
 
-emotion-doubt:
+emotion-lol:
 	$(PY) client.py emotion lol
 
 emotion-anxiety:
@@ -38,13 +38,13 @@ emotion-neutral:
 	$(PY) client.py emotion neutral
 
 say:
-	$(PY) client.py say "привет, как слышно"
+	$(PY) client.py say "hello, can you hear me (lol)"
 
 level:
 	$(PY) client.py level 0.8 0.3
 
 speak:
-	$(PY) client.py speak out.json out.wav
+	$(PY) client.py speak timeline.json audio.wav
 
 clear:
 	$(PY) client.py clear

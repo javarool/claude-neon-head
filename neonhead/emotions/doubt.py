@@ -1,5 +1,5 @@
 NAME = "doubt"
-ALIASES = ("сомнение",)
+ALIASES = ("uncertainty",)
 
 PRESET = {
     "brow_y_l": 0.50, "brow_y_r": -0.15, "brow_tilt_l": -0.10,

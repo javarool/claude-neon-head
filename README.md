@@ -1,78 +1,77 @@
-# neon head
+# claude-neonhead
 
-Процедурная говорящая голова: три вращающихся кольца, неоновый контур,
-обрезанные глаза с белым яблоком и зрачком, брови, рот с зубами и планета
-на орбите вместо носа. Ни одной 3D-модели — вся геометрия генерируется
-в numpy каждый кадр.
+A procedural talking head: three rotating rings, a neon contour, clipped
+eyes with sclera and pupil, brows, a mouth with teeth, and a planet orbiting
+in place of a nose. No 3D models — all geometry is generated in numpy every
+frame.
 
-Программа открывает окно и слушает порт. Ты шлёшь ей JSON: эмоции, визимы,
-уровень громкости или готовый таймлайн от Chatterbox.
+The program opens a window and listens on a port. You send it JSON: emotions,
+visemes, a volume level, or a ready-made timeline.
 
-![превью](preview.png)
+![preview](preview.png)
 
-## Запуск
+## Running
 
 ```bash
 pip install -r requirements.txt
 python run.py
 ```
 
-`sounddevice` нужен только чтобы слышать wav во время `speak` — без него
-таймлайн всё равно проигрывается, просто беззвучно.
+`sounddevice` is only needed to hear the wav during `speak` — without it the
+timeline still plays, just silently.
 
 ```bash
-python run.py --config my.json      # свой конфиг поверх дефолтного
+python run.py --config my.json      # your own config layered over the default
 ```
 
-Клавиши в окне: `1`–`9` эмоции (первые девять из списка; `surprise` — десятая,
-без клавиши, отправляй `emotion`-командой), `d` демо-режим (перебирает все
-эмоции), `y`/`n` жесты кивок/отказ, `пробел` тестовая фраза, `c` сброс,
-`esc` выход.
+Keys in the window: `←`/`→` browse emotions one at a time (more emotions
+than number keys, and digits would get in the way of typing over the same
+terminal), `d` demo mode (cycles through every emotion), `y`/`n` nod/decline
+gestures, `space` a test phrase, `c` reset, `esc` quit.
 
-## Протокол
+## Protocol
 
-Один JSON-объект на UDP-датаграмму (порт 9955), либо по объекту на строку
-через TCP (порт 9956). Порядок и надёжность не важны — состояние всегда
-интерполируется, ни одна команда не может дёрнуть лицо рывком.
+One JSON object per UDP datagram (port 9955), or one object per line over
+TCP (port 9956). Order and delivery reliability don't matter — state is
+always interpolated, no command can snap the face.
 
 ```jsonc
 {"type": "emotion", "name": "anger", "weight": 1.0, "blend_ms": 250}
 {"type": "viseme",  "shape": "D"}
 {"type": "level",   "rms": 0.7, "f0": 0.3}
-{"type": "say",     "text": "привет, я слушаю"}
-{"type": "speak",   "timeline": "out.json", "wav": "out.wav"}
+{"type": "say",     "text": "Hello, I'm here!"}
+{"type": "speak",   "timeline": "timeline.json", "wav": "audio.wav"}
 {"type": "set",     "params": {"eye_gaze_x": -0.8, "brow_y_l": 0.6}}
 {"type": "clear"}
 {"type": "demo",    "on": true, "hold_s": 2.0}
 {"type": "gesture", "name": "yes"}
 {"type": "config",  "patch": {"palette": {"contour": "#3FB8C8"}}}
+{"type": "title",   "text": "neonhead: /home/me/project"}
 {"type": "quit"}
 ```
 
-Эмоции: `neutral`, `interest`, `joy`, `anger`, `doubt`, `anxiety`, `sad`,
-`fear`, `disgust`, `surprise`, `shame`. Русские алиасы тоже работают: `покой`,
-`интерес`, `радость`, `злость`, `сомнение`, `тревога`, `грусть`, `страх`,
-`отвращение`, `удивление`, `стыд`. Каждая описана в своём файле в
-`neonhead/emotions/` — новый файл там сразу попадает в список эмоций и в
-демо-режим, без правок в другом коде.
+Emotions: `neutral`, `interest`, `joy`, `anger`, `doubt`, `anxiety`, `sad`,
+`fear`, `disgust`, `surprise`, `shame`, `dead`, `sleep`. Each is described in its own file in
+`neonhead/emotions/` — a new file there is immediately picked up into the
+emotion list and the demo cycle, with no edits elsewhere.
 
-`demo` включает перебор всех эмоций из `neonhead/emotions/`, по `hold_s`
-секунд на каждую (по умолчанию 2), пока не придёт `demo` с `"on": false`,
-любая другая `emotion`-команда или `clear`.
+`demo` cycles through every emotion in `neonhead/emotions/`, `hold_s`
+seconds each (2 by default), until a `demo` with `"on": false` arrives, any
+other `emotion` command, or `clear`.
 
-Жесты — короткие анимации, а не статичная поза: `yes` (кивок, 3 цикла) и
-`no` (покачивание, 3 цикла), сами гаснут по завершении. Живут в
-`neonhead/gestures/`, тем же способом — новый файл там сразу становится
-доступен по имени.
+Gestures are short animations, not a static pose: `yes` (nod, 3 cycles) and
+`no` (shake, 3 cycles), self-clearing on completion. They live in
+`neonhead/gestures/`, the same way — a new file there is immediately
+available by name.
 
-Визимы: `X` пауза, `A` мбп, `B` сзтднкгхцчшщйиы, `C` эе, `D` ая, `E` оё,
-`F` ую, `G` фв, `H` лр.
+Visemes: `X` silence, `A` m/b/p, `B` s/z/t/d/n/k/g/h/ts/ch/sh/shch/y/i,
+`C` e, `D` a, `E` o, `F` u, `G` f/v, `H` l/r.
 
-### Из шелла
+### From the shell
 
 ```bash
 python client.py emotion anger
-python client.py say "привет, как слышно"
+python client.py say "hello, can you hear me"
 python client.py level 0.8 0.3
 python client.py set eye_gaze_x=-0.9 brow_y_l=0.7
 python client.py config palette.contour=#3FB8C8 brightness.contour=4.5
@@ -80,100 +79,41 @@ python client.py demo 2.0
 python client.py gesture yes
 ```
 
-### Из Python
+## Claude Code hooks
 
-```python
-from client import Head
+`.claude/skills/neonhead-react/` bundles a `neonhead-react` skill and a
+`neonhead.sh` control script so Claude Code can react to you live, as a
+face, without any python/venv in the loop.
 
-head = Head()
-head.emotion("joy", blend_ms=400)
-head.speak("out.json", "out.wav")
+1. Copy the example hooks config into place and reload:
+
+   ```bash
+   cp .claude/settings.example.json .claude/settings.local.json
+   ```
+
+   then run `/hooks` in Claude Code to pick it up.
+
+2. That's it — the skill (`.claude/skills/neonhead-react/SKILL.md`) is
+   already in the repo and picked up automatically; no separate install
+   step. `neonhead.sh start`/`stop` run on `SessionStart`/`SessionEnd`, so
+   the head opens and closes with the session on its own.
+
+`settings.example.json` wires up one cue hook per session event
+(`SessionStart`, `UserPromptSubmit`, `PermissionRequest`,
+`PostToolUseFailure`, `Stop`, `SubagentStart`, `TaskCompleted`,
+`Elicitation`), each firing a matching emotion or gesture via
+`neonhead.sh` — e.g. `doubt` on a permission prompt, `anger` + `gesture no`
+on a tool failure, `triumph` on a completed task. Every cue hook runs
+`"async": true` so it never adds turn/session latency. The skill itself
+additionally reacts to conversation *content* (jokes, typos, frustration,
+etc. — see the trigger table in `SKILL.md`), on top of what the hooks
+cover for raw session events.
+
+You can drive `neonhead.sh` by hand the same way the hooks do:
+
+```bash
+.claude/skills/neonhead-react/neonhead.sh start
+.claude/skills/neonhead-react/neonhead.sh emotion joy 0.6
+.claude/skills/neonhead-react/neonhead.sh gesture yes
+.claude/skills/neonhead-react/neonhead.sh stop
 ```
-
-## Пайплайн с Chatterbox
-
-Chatterbox не отдаёт тайминги фонем, но текст ты знаешь. `make_timeline.py`
-раскладывает последовательность букв по озвученному времени и заодно считает
-питч и энергию:
-
-```python
-import torchaudio, subprocess
-from chatterbox.tts import ChatterboxTTS
-from client import Head
-
-text = "здравствуй, я вижу тебя"
-model = ChatterboxTTS.from_pretrained(device="cuda")
-wav = model.generate(text)
-torchaudio.save("out.wav", wav, model.sr)
-
-subprocess.run(["python", "tools/make_timeline.py", "out.wav", "--text", text])
-
-head = Head()
-head.emotion("interest")
-head.speak("out.json", "out.wav")
-```
-
-Если захочешь точнее — замени `letters_to_visemes` на форсированное
-выравнивание через `torchaudio.pipelines.MMS_FA`. Формат таймлайна не меняется:
-
-```jsonc
-{
-  "audio": "out.wav",
-  "duration": 2.14,
-  "visemes": [{"t": 0.00, "shape": "B"}, {"t": 0.08, "shape": "D"}],
-  "prosody": {"hop": 0.02, "rms": [0.0, 0.12], "f0": [0.0, -0.4]}
-}
-```
-
-`rms` нормирован в 0…1, `f0` — в стандартных отклонениях от медианы голоса,
-то есть 0 это обычный тон, +1 заметно выше обычного.
-
-## Конфиг
-
-Всё в `config.json`, любой ключ можно менять на лету командой `config`.
-
-**`palette`** — все цвета сцены в hex. Смена одного `contour` перекрашивает
-голову целиком, потому что сияние берёт цвет отсюда, а не из шейдера.
-`sclera`, `pupil`, `teeth` — единственные несветящиеся элементы.
-
-**`brightness`** — HDR-яркость каждого слоя. Именно эти числа задают иерархию:
-`contour` 3.0 попадает в свечение, `rings` 0.30 не дотягивает до порога и
-остаётся сухой линией. Хочешь, чтобы кольца тоже горели — подними до 1.0.
-`depth_back` — насколько гаснет дальняя половина кольца, это весь объём сцены.
-
-**`widths`** — толщина линий в пикселях при окне 820. Масштабируется сама.
-
-**`head`** — пропорции лица, все в долях радиуса головы. `eye_dome` высота
-купола глаза, `eye_sep` разлёт, `orbit_r` радиус орбиты планеты-носа.
-
-**`idle`** — поведение в простое: интервалы моргания, период орбиты, прецессия
-её плоскости, через сколько секунд тишины голова начинает «скучать».
-
-**`post`** — `afterglow` след люминофора (0.86 заметный, 0.5 почти сухой),
-`bloom_threshold` отделяет светящееся от несветящегося, `exposure` общая
-экспозиция, `jitter_px` дрожание кадра, `mains_hum` сетевой гул 50 Гц,
-`tube_noise` неравномерность свечения вдоль трубки.
-
-**`speech`** — `attack_ms` / `release_ms` сглаживание визем, `emotion_blend_ms`
-скорость перехода между эмоциями.
-
-## Как это устроено
-
-`rig.py` — двадцать чисел, полностью описывающих лицо. Три независимых слоя
-складываются: базовая эмоция, просодия, визимы. Визимы трогают только рот,
-просодия только брови, глаза и орбиту — поэтому голова может говорить и
-злиться одновременно. Поверх лежат жесты (`neonhead/gestures/`) — короткие
-анимации head_yaw/head_pitch, которые сами гаснут после нескольких циклов,
-в отличие от статичных эмоций (`neonhead/emotions/`).
-
-`geometry.py` — кольца это 3D-окружности, спроецированные на экран; лицо это
-несколько параметрических кривых. Светящееся превращается в ленты (квады
-с профилем яркости поперёк ширины), несветящееся — в обычные треугольники.
-
-`render.py` — послесвечение, аддитивная отрисовка в HDR, bloom с порогом,
-тонмаппинг, и только потом сплошные объекты поверх. Порядок важен: зубы и
-белки глаз рисуются после свечения, поэтому читаются как предметы внутри
-света, а не как ещё один источник.
-
-Сборка кадра на CPU занимает около 2 мс, так что узкое место — вертикальная
-синхронизация, а не Python.

@@ -1,5 +1,5 @@
 NAME = "interest"
-ALIASES = ("интерес",)
+ALIASES = ("curiosity",)
 
 PRESET = {
     "brow_y_l": 0.45, "brow_y_r": 0.45, "brow_tilt_l": -0.10,

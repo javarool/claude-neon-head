@@ -1,0 +1,138 @@
+{
+  "//": "Copy to .claude/settings.local.json to activate, then reload via /hooks. Starts/stops neonhead with the session and reacts to a curated set of session events with matching emotions/gestures - see README.md's Claude Code hooks section for what each one means and why. Every cue hook is async: true so it never adds turn/session latency.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '\\033]0;neonhead: %s\\007' \"$PWD\" >/dev/tty 2>/dev/null || true",
+            "statusMessage": "Setting terminal title..."
+          },
+          {
+            "type": "command",
+            "command": "/home/vadim/WORK_DIR/Mimir/claude-neonhead/.claude/skills/neonhead-react/neonhead.sh start",
+            "timeout": 20,
+            "statusMessage": "Starting neonhead...",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "/home/vadim/WORK_DIR/Mimir/claude-neonhead/.claude/skills/neonhead-react/neonhead.sh title \"neonhead: $PWD\" && /home/vadim/WORK_DIR/Mimir/claude-neonhead/.claude/skills/neonhead-react/neonhead.sh gesture hello && /home/vadim/WORK_DIR/Mimir/claude-neonhead/.claude/skills/neonhead-react/neonhead.sh emotion joy 0.4",
+            "timeout": 10,
+            "statusMessage": "Waving hello...",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/vadim/WORK_DIR/Mimir/claude-neonhead/.claude/skills/neonhead-react/neonhead.sh stop",
+            "timeout": 20,
+            "statusMessage": "Stopping neonhead..."
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/vadim/WORK_DIR/Mimir/claude-neonhead/.claude/skills/neonhead-react/neonhead.sh emotion interest 0.5 && /home/vadim/WORK_DIR/Mimir/claude-neonhead/.claude/skills/neonhead-react/neonhead.sh say \"okay, thinking\"",
+            "timeout": 5,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/vadim/WORK_DIR/Mimir/claude-neonhead/.claude/skills/neonhead-react/neonhead.sh emotion doubt 0.7",
+            "timeout": 5,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/vadim/WORK_DIR/Mimir/claude-neonhead/.claude/skills/neonhead-react/neonhead.sh emotion anger 0.5",
+            "timeout": 5,
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "/home/vadim/WORK_DIR/Mimir/claude-neonhead/.claude/skills/neonhead-react/neonhead.sh gesture no",
+            "timeout": 5,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/vadim/WORK_DIR/Mimir/claude-neonhead/.claude/skills/neonhead-react/neonhead.sh emotion joy 0.4",
+            "timeout": 5,
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "/home/vadim/WORK_DIR/Mimir/claude-neonhead/.claude/skills/neonhead-react/neonhead.sh gesture yes",
+            "timeout": 5,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/vadim/WORK_DIR/Mimir/claude-neonhead/.claude/skills/neonhead-react/neonhead.sh emotion focus 0.6",
+            "timeout": 5,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/vadim/WORK_DIR/Mimir/claude-neonhead/.claude/skills/neonhead-react/neonhead.sh emotion triumph 0.8",
+            "timeout": 5,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "Elicitation": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/vadim/WORK_DIR/Mimir/claude-neonhead/.claude/skills/neonhead-react/neonhead.sh gesture shrug",
+            "timeout": 5,
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,5 +1,5 @@
 NAME = "anger"
-ALIASES = ("злость", "гнев")
+ALIASES = ("rage", "fury")
 
 PRESET = {
     "brow_y_l": -0.35, "brow_y_r": -0.35, "brow_tilt_l": 0.80,

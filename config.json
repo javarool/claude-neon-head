@@ -1,8 +1,8 @@
 {
   "window": {
-    "width": 820,
-    "height": 820,
-    "title": "neon head",
+    "width": 250,
+    "height": 250,
+    "title": "Claude Neon-Head",
     "vsync": true,
     "resizable": true,
     "floating": true
@@ -14,7 +14,7 @@
     "enabled": true
   },
   "palette": {
-    "background": "#050705",
+    "background": "#000000",
     "core": "#EEFFF5",
     "contour": "#3FB870",
     "rings": "#154E2A",
@@ -42,10 +42,10 @@
     "contour": 7.0,
     "rings": 1.3,
     "features": 3.2,
-    "orbit": 1.1
+    "orbit": 1.65
   },
   "head": {
-    "radius_frac": 0.3,
+    "radius_frac": 0.4,
     "eye_w": 0.185,
     "eye_sep": 0.315,
     "eye_y": -0.14,
@@ -56,9 +56,9 @@
     "mouth_y": 0.52,
     "mouth_w": 0.23,
     "orbit_r": 0.215,
-    "orbit_y": 0.175,
+    "orbit_y": -0.1,
     "orbit_tilt": 38.0,
-    "core_r": 0.03,
+    "core_r": 0.04,
     "ring_segments": 128
   },
   "idle": {

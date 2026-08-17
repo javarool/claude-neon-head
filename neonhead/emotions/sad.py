@@ -1,5 +1,5 @@
 NAME = "sad"
-ALIASES = ("грусть", "печаль")
+ALIASES = ("sadness", "sorrow")
 
 PRESET = {
     "brow_y_l": -0.10, "brow_y_r": -0.10, "brow_tilt_l": -0.45,

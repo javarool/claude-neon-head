@@ -1,1 +1,5 @@
 /venv/
+/.claude/settings.local.json
+/.neonhead.pid
+/.neonhead.log
+**/__pycache__/

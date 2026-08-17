@@ -1,5 +1,5 @@
 NAME = "no"
-ALIASES = ("нет", "отказ", "несогласие", "disapprove", "disagree")
+ALIASES = ("refusal", "disagreement", "disapprove", "disagree")
 
 # Shake: head_yaw oscillates a few times, eased in/out by rig.Rig.
 # head_yaw is a fraction of head radius R (see geometry.build: cx = ... +

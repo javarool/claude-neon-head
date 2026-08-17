@@ -1,5 +1,5 @@
 NAME = "yes"
-ALIASES = ("да", "согласие", "кивок", "agree", "approve")
+ALIASES = ("agreement", "nod", "agree", "approve")
 
 # Nod: head_pitch oscillates a few times, eased in/out by rig.Rig.
 # head_pitch is a fraction of head radius R (see geometry.build: cy = ... +

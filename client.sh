@@ -2,9 +2,9 @@
 # Wrapper around client.py that activates the project venv first.
 #
 #   ./client.sh emotion anger
-#   ./client.sh say "привет, как слышно"
+#   ./client.sh say "hello, can you hear me"
 #   ./client.sh level 0.8 0.3
-#   ./client.sh speak out.json out.wav
+#   ./client.sh speak timeline.json audio.wav
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

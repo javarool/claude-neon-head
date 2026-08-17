@@ -2,14 +2,15 @@
 """Send commands to a running neon head.
 
     python client.py emotion anger
-    python client.py say "привет, я слушаю"
+    python client.py say "Hello, I'm here!"
     python client.py level 0.8 0.3
-    python client.py speak out.json out.wav
+    python client.py speak timeline.json audio.wav
     python client.py set eye_gaze_x=-0.9 brow_y_l=0.7
     python client.py config palette.contour=#3FB8C8
     python client.py demo 2.0
     python client.py demo off
     python client.py gesture yes
+    python client.py title "neonhead: /home/me/project"
     python client.py raw '{"type":"viseme","shape":"D"}'
 
 Or from Python:
@@ -17,7 +18,7 @@ Or from Python:
     from client import Head
     head = Head()
     head.emotion("joy")
-    head.speak("out.json", "out.wav")
+    head.speak("timeline.json", "audio.wav")
 """
 
 from __future__ import annotations
@@ -64,6 +65,9 @@ class Head:
 
     def gesture(self, name):
         self.send(type="gesture", name=name)
+
+    def title(self, text):
+        self.send(type="title", text=text)
 
 
 def _nest(dotted: str, value):
@@ -135,6 +139,8 @@ def main(argv):
             head.demo(on=True, hold_s=float(arg))
     elif cmd == "gesture":
         head.gesture(rest[0])
+    elif cmd == "title":
+        head.title(" ".join(rest))
     elif cmd == "raw":
         head.sock.sendto(rest[0].encode("utf-8"), head.addr)
     else:

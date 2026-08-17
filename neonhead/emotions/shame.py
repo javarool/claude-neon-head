@@ -1,5 +1,5 @@
 NAME = "shame"
-ALIASES = ("стыд",)
+ALIASES = ("embarrassment",)
 
 # Head/gaze drop and brows fall with it, eyes narrow and avert, mouth tucks
 # in rather than curling down — withdrawal, not sadness's collapse.
