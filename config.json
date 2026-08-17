@@ -1,0 +1,97 @@
+{
+  "window": {
+    "width": 820,
+    "height": 820,
+    "title": "neon head",
+    "vsync": true,
+    "resizable": true,
+    "floating": true
+  },
+  "net": {
+    "host": "127.0.0.1",
+    "udp_port": 9955,
+    "tcp_port": 9956,
+    "enabled": true
+  },
+  "palette": {
+    "background": "#050705",
+    "core": "#EEFFF5",
+    "contour": "#3FB870",
+    "rings": "#154E2A",
+    "features": "#4FC97E",
+    "orbit": "#1E7040",
+    "planet": "#B6F5CE",
+    "spill": "#0E4A26",
+    "sclera": "#FFFFFF",
+    "pupil": "#04060A",
+    "teeth": "#FFFFFF",
+    "mouth_dark": "#08160D"
+  },
+  "brightness": {
+    "contour": 3.0,
+    "rings": 0.3,
+    "features": 2.3,
+    "orbit": 0.45,
+    "planet": 2.6,
+    "core": 2.0,
+    "spill": 0.008,
+    "trail": 1.0,
+    "depth_back": 0.12
+  },
+  "widths": {
+    "contour": 7.0,
+    "rings": 1.3,
+    "features": 3.2,
+    "orbit": 1.1
+  },
+  "head": {
+    "radius_frac": 0.3,
+    "eye_w": 0.185,
+    "eye_sep": 0.315,
+    "eye_y": -0.14,
+    "eye_dome": 0.245,
+    "pupil_r": 0.07,
+    "brow_y": -0.56,
+    "brow_w": 0.2,
+    "mouth_y": 0.52,
+    "mouth_w": 0.23,
+    "orbit_r": 0.215,
+    "orbit_y": 0.175,
+    "orbit_tilt": 38.0,
+    "core_r": 0.03,
+    "ring_segments": 128
+  },
+  "idle": {
+    "blink_min_s": 2.0,
+    "blink_max_s": 6.5,
+    "orbit_period_s": 6.5,
+    "orbit_idle_period_s": 14.0,
+    "precession_period_s": 40.0,
+    "bored_after_s": 20.0,
+    "sway_amount": 0.035,
+    "breath_amount": 0.02,
+    "trail_points": 12
+  },
+  "post": {
+    "afterglow": 0.86,
+    "bloom_threshold": 0.75,
+    "bloom_knee": 0.6,
+    "bloom_weights": [
+      0.38,
+      0.24,
+      0.14
+    ],
+    "exposure": 1.0,
+    "gamma": 2.2,
+    "jitter_px": 0.3,
+    "mains_hum": 0.03,
+    "tube_noise": 0.08,
+    "bloom_solids": false
+  },
+  "speech": {
+    "attack_ms": 45,
+    "release_ms": 85,
+    "emotion_blend_ms": 260,
+    "audio_output": true
+  }
+}
