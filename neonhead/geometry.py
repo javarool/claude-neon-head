@@ -195,6 +195,18 @@ def _eye_outline(cx, cy, w, h, gaze, slant, n=26):
     return pts.astype(np.float32)
 
 
+def _chevron(cx, cy, w, h, inward):
+    """A sharp '<'/'>' angle in place of the eye dome — disgust's tell.
+    `inward` is +1/-1 for the direction the apex points (toward the nose):
+    apex sits at cx + inward*w, the two arms open back out to the socket
+    edge. One open polyline (not two crossing strokes like `_cross`) so
+    the vertex reads as a single sharp corner."""
+    apex = [cx + inward * w, cy]
+    top = [cx - inward * w * 0.5, cy - h]
+    bot = [cx - inward * w * 0.5, cy + h]
+    return np.array([top, apex, bot], np.float32)
+
+
 def _cross(cx, cy, half):
     """Two crossing strokes — the `eye_dead` X, drawn over the collapsed lid."""
     return (
@@ -207,6 +219,34 @@ def _letter_z(cx, cy, half):
     """A single 'Z' as one open polyline: top bar, diagonal, bottom bar."""
     return np.array([[cx - half, cy - half], [cx + half, cy - half],
                      [cx - half, cy + half], [cx + half, cy + half]], np.float32)
+
+
+def _drop(cx, cy, size, n=20):
+    """Teardrop via cardioid r = a(1 - cos t): cusp at the top, round bulb
+    below — the manga "sweat drop" anxiety tell."""
+    t = np.linspace(0.0, TAU, n, endpoint=False)
+    r = size * 0.5 * (1.0 - np.cos(t))
+    x = cx + r * np.cos(t - math.pi / 2)
+    y = cy + r * np.sin(t - math.pi / 2)
+    return np.stack([x, y], 1).astype(np.float32)
+
+
+def _tongue(cx, cy, w, h, tilt, n=14):
+    """Half an oval — the "blep" tongue poking out of a mouth corner,
+    independent of aperture (works on a closed, smiling mouth). Only the
+    curved half is traced (t in [0, pi]); `add_poly` closes the polygon
+    with a straight chord back to the start, which becomes the flat cut
+    edge that sits flush against the lip line."""
+    t = np.linspace(0.0, math.pi, n)
+    x, y = np.cos(t) * w, np.sin(t) * h
+    ca, sa = math.cos(tilt), math.sin(tilt)
+    return np.stack([cx + x * ca - y * sa, cy + x * sa + y * ca], 1).astype(np.float32)
+
+
+def _ring(cx, cy, r, n=32):
+    """A thin circle — the `monocle` ring around one eye."""
+    t = np.linspace(0.0, TAU, n, endpoint=False)
+    return np.stack([cx + np.cos(t) * r, cy + np.sin(t) * r], 1).astype(np.float32)
 
 
 def _brow(cx, cy, hw, tilt, bend, mirror, n=16):
@@ -222,12 +262,18 @@ def _brow(cx, cy, hw, tilt, bend, mirror, n=16):
     return ((1 - t) ** 2 * p0 + 2 * (1 - t) * t * p1 + t ** 2 * p2).astype(np.float32)
 
 
-def _mouth(cx, cy, half_w, aperture, curve, n=22):
-    """Lens: upper and lower curve around a bent centreline."""
+def _mouth(cx, cy, half_w, aperture, curve, tilt=0.0, n=22):
+    """Lens: upper and lower curve around a bent, optionally skewed centreline.
+
+    `tilt` adds a linear skew across the width — one corner down, the other
+    up — for a one-sided smirk/doubt, layered on top of `curve`'s symmetric
+    bend.
+    """
     t = np.linspace(0.0, 1.0, n)
     x = cx + half_w * (2.0 * t - 1.0)
     bend = -curve * half_w * 0.45
-    centre = cy - bend * np.sqrt(np.clip(1.0 - (2.0 * t - 1.0) ** 2, 0.0, 1.0))
+    centre = (cy - bend * np.sqrt(np.clip(1.0 - (2.0 * t - 1.0) ** 2, 0.0, 1.0))
+              + tilt * half_w * (2.0 * t - 1.0) * 0.5)
     lift = np.sqrt(np.clip(1.0 - (2.0 * t - 1.0) ** 2, 0.0, 1.0)) * aperture * 0.5
     upper = np.stack([x, centre - lift], 1)
     lower = np.stack([x, centre + lift], 1)
@@ -305,25 +351,30 @@ def build(cfg, rig, width_px: int, height_px: int) -> Frame:
 
     # ---- eyes ----
     ew = R * H["eye_w"] * p["eye_w"]
-    eh = R * H["eye_dome"] * max(0.02, p["eye_h"])
     ey = cy + R * H["eye_y"] + p["eye_gaze_y"] * R * 0.02
     sep = R * H["eye_sep"]
     dead = max(0.0, min(1.0, p["eye_dead"]))
-    for sign in (-1.0, 1.0):
+    angry = max(0.0, min(1.0, p["eye_angry"]))
+    hide = min(1.0, dead + angry)   # either tell replaces the normal eye
+    # eye_h_l/_r stack on the shared eye_h, same asymmetry pattern as the
+    # brows — one eye can go wide while the other squints (e.g. doubt)
+    for sign, side in ((-1.0, "eye_h_l"), (1.0, "eye_h_r")):
         ex = cx + sign * sep
+        eh = R * H["eye_dome"] * max(0.02, p["eye_h"] + p[side])
         slant = p["eye_slant"] * (-sign)
         outline = _eye_outline(ex, ey, ew, eh, p["eye_gaze_x"], slant)
         # white sclera first, then the pupil, then the glowing rim — all
-        # fade out as eye_dead comes in, so a dead eye is X-only, not a
-        # closed lid with an X drawn over it (that's what `sleep` is for)
-        if dead < 0.99:
-            f.add_poly(outline, rgb["sclera"], 1.0 - dead)
+        # fade out as eye_dead/eye_angry come in, so a dead/angry eye is
+        # X-only or chevron-only, not layered over a closed lid (that's
+        # what `sleep` is for)
+        if hide < 0.99:
+            f.add_poly(outline, rgb["sclera"], 1.0 - hide)
             pr = min(R * H["pupil_r"], eh * 0.42, ew * 0.55)
             if eh > R * H["eye_dome"] * 0.18 and pr > 0.6:
                 px = ex + p["eye_gaze_x"] * ew * 0.34
                 py = ey - eh * 0.46
-                f.add_disc(px, py, pr, rgb["pupil"], 1.0 - dead)
-            f.add_ribbon(outline, W["features"], B["features"] * gain * (1.0 - dead),
+                f.add_disc(px, py, pr, rgb["pupil"], 1.0 - hide)
+            f.add_ribbon(outline, W["features"], B["features"] * gain * (1.0 - hide),
                          rgb["features"], closed=True)
         # dead: an X fades in in its place, sized off the base eye radius
         # so it doesn't shrink along with the (now-irrelevant) eye_h dome
@@ -332,6 +383,33 @@ def build(cfg, rig, width_px: int, height_px: int) -> Frame:
             for stroke in _cross(ex, ey, half):
                 f.add_ribbon(stroke, W["features"], B["features"] * gain * dead,
                              rgb["features"])
+        # angry: a sharp '>'/'<' chevron, apex pointing at the nose —
+        # disgust's tell. Same off-the-base sizing as the X above.
+        if angry > 0.01:
+            half = R * H["eye_w"] * 0.42
+            chevron = _chevron(ex, ey, half, half * 1.1, -sign)
+            f.add_ribbon(chevron, W["features"], B["features"] * gain * angry,
+                         rgb["features"], taper=False)
+        # monocle: a thin ring on the wide eye only (eye_h_l), the classic
+        # "well, I never" gag — doubt's raised-brow side. Centred on the
+        # pupil using eye_h_base (pre-blink) rather than eh, so it sits on
+        # the socket and doesn't bob with every blink.
+        if side == "eye_h_l" and p["monocle"] > 0.01:
+            eh_base = R * H["eye_dome"] * max(0.02, p["eye_h_base"] + p[side])
+            mx = ex + p["eye_gaze_x"] * ew * 0.34
+            my = ey - eh_base * 0.46
+            mr = ew * 1.35
+            ring = _ring(mx, my, mr)
+            f.add_ribbon(ring, W["features"] * 0.5,
+                         B["features"] * gain * 0.6 * p["monocle"],
+                         rgb["features"], closed=True)
+            # dangling chain: hangs from the outer edge of the ring (away
+            # from the nose), two ring diameters long
+            ox = mx + sign * mr
+            chain = np.array([[ox, my], [ox, my + mr * 4.0]], np.float32)
+            f.add_ribbon(chain, W["features"] * 0.4,
+                         B["features"] * gain * 0.5 * p["monocle"],
+                         rgb["features"])
 
     # ---- brows ----
     bw = R * H["brow_w"]
@@ -345,29 +423,92 @@ def build(cfg, rig, width_px: int, height_px: int) -> Frame:
     mw = R * H["mouth_w"] * (0.60 + 0.80 * p["mouth_w"])
     ap = R * H["mouth_w"] * 1.15 * max(0.0, p["mouth_ap"])
     my = cy + R * H["mouth_y"]
-    upper, lower = _mouth(cx, my, mw, ap, p["mouth_curve"])
-    loop = np.vstack([upper, lower[::-1]])
+    upper, lower = _mouth(cx, my, mw, ap, p["mouth_curve"], p["mouth_tilt"])
+    saw = p["mouth_saw"]
+    if saw > 0.01:
+        # triangle wave via arcsin(sin(x)): cheap, no extra teeth-shape
+        # geometry needed — just ripple the existing lip lines into points,
+        # upper biting down and lower biting up. disgust's "bared teeth"
+        # tell without an actual teeth mesh. Both use the SAME wave at the
+        # SAME x-positions (in phase, not one shifted like sin vs cos) so
+        # the two rows of teeth face each other rather than interleaving.
+        n = len(upper)
+        teeth_n = 4
+        wave = np.abs(np.arcsin(np.sin(np.linspace(0.0, teeth_n * math.pi, n))) * (2.0 / math.pi))
+        # tooth amplitude pegged to half the eye-chevron size, so the two
+        # "sharp tell" shapes on the face read at a matched scale
+        chevron_half = R * H["eye_w"] * 0.42
+        jag = wave * (chevron_half * 0.75) * saw
+        # both rows ride the SAME sign of the wave — teeth pointing one
+        # direction, like two parallel saw blades — with a small constant
+        # gap between the rows so they don't collapse onto each other
+        gap = chevron_half * 0.35 * saw
+        upper[:, 1] = upper[:, 1] - gap * 0.5 - jag
+        lower[:, 1] = lower[:, 1] + gap * 0.5 - jag
+        # drawn as two independent open strokes, not one closed loop
+        # stitching top to bottom — a mitered ribbon can't take a sharp
+        # zigzag's near-180-degree turns cleanly and braids the two rows
+        # together instead of keeping them as parallel lines
+        f.add_ribbon(upper, W["features"], B["features"] * gain,
+                     rgb["features"], taper=False)
+        f.add_ribbon(lower, W["features"], B["features"] * gain,
+                     rgb["features"], taper=False)
+    else:
+        loop = np.vstack([upper, lower[::-1]])
 
-    if ap > R * 0.012:
-        f.add_poly(loop, rgb["mouth_dark"], 1.0)
-        teeth = p["mouth_smile"]
-        alpha = max(0.0, min(1.0, (teeth - 0.45) / 0.35))
-        if alpha > 0.01:
-            depth_px = min(ap * 0.42, mw * 0.16)
-            inner = upper[2:-2]
-            if len(inner) > 3:
-                band = inner + np.array([0.0, depth_px], np.float32)
-                f.add_strip(inner, band, rgb["teeth"], alpha)
-                step = max(1, len(inner) // 4)
-                for k in range(step, len(inner) - 1, step):
-                    a = inner[k]
-                    f.add_poly(np.array([[a[0] - 0.9, a[1]], [a[0] + 0.9, a[1]],
-                                         [a[0] + 0.9, a[1] + depth_px],
-                                         [a[0] - 0.9, a[1] + depth_px]], np.float32),
-                               rgb["mouth_dark"], alpha)
+        if ap > R * 0.012:
+            f.add_poly(loop, rgb["mouth_dark"], 1.0)
+            teeth = p["mouth_smile"]
+            alpha = max(0.0, min(1.0, (teeth - 0.45) / 0.35))
+            if alpha > 0.01:
+                depth_px = min(ap * 0.42, mw * 0.16)
+                inner = upper[2:-2]
+                if len(inner) > 3:
+                    band = inner + np.array([0.0, depth_px], np.float32)
+                    f.add_strip(inner, band, rgb["teeth"], alpha)
+                    step = max(1, len(inner) // 4)
+                    for k in range(step, len(inner) - 1, step):
+                        a = inner[k]
+                        f.add_poly(np.array([[a[0] - 0.9, a[1]], [a[0] + 0.9, a[1]],
+                                             [a[0] + 0.9, a[1] + depth_px],
+                                             [a[0] - 0.9, a[1] + depth_px]], np.float32),
+                                   rgb["mouth_dark"], alpha)
 
-    f.add_ribbon(loop, W["features"], B["features"] * gain,
-                 rgb["features"], closed=True)
+        f.add_ribbon(loop, W["features"], B["features"] * gain,
+                     rgb["features"], closed=True)
+
+    # ---- tongue: a "blep" poking from the right mouth corner, independent
+    # of aperture so it reads on a closed, goofy-grin mouth too (dead's
+    # tell) rather than requiring the jaw to hang open ----
+    tongue = p["tongue"]
+    if tongue > 0.01:
+        corner = (upper[-1] + lower[-1]) * 0.5
+        tw, th = mw * 0.26, mw * 0.40
+        # nudge down by one mouth-stroke width so the flat cut edge tucks
+        # under the lip line instead of its corner poking through it, and
+        # left by one tongue-width so it sits inboard of the mouth corner
+        # rather than hanging off the very edge
+        shape = _tongue(corner[0] - tw, corner[1] + W["features"] * 3.0, tw, th, -0.35)
+        f.add_poly(shape, rgb["tongue"], min(1.0, tongue))
+        f.add_ribbon(shape, W["features"] * 0.35,
+                     B["features"] * gain * 0.35 * tongue,
+                     rgb["features"], closed=True)
+
+    # ---- sweat: a droplet sliding down the temple, anxiety's tell. One
+    # cycle = one drip; solid + a faint glowing rim, same "object inside
+    # the light" treatment as the teeth/sclera rather than another light
+    # source.
+    sweat = p["sweat"]
+    if sweat > 0.01:
+        ph = (rig.t * 0.55) % 1.0
+        dx = cx + R * 0.80
+        dy = cy - R * 0.60 + ph * R * 1.05
+        size = R * 0.075 * (1.0 - 0.2 * ph)
+        fade = sweat * min(1.0, ph * 8.0) * min(1.0, (1.0 - ph) * 4.0)
+        drop = _drop(dx, dy, size)
+        f.add_poly(drop, rgb["core"], fade * 0.85)
+        f.add_ribbon(drop, W["features"] * 0.35, B["features"] * gain * fade * 0.4,
+                     rgb["features"], closed=True)
 
     # ---- zzz: three drifting "Z"s, sleep's tell ----
     zzz = p["zzz"]

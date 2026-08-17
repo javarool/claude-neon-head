@@ -25,7 +25,8 @@
     "sclera": "#FFFFFF",
     "pupil": "#04060A",
     "teeth": "#FFFFFF",
-    "mouth_dark": "#08160D"
+    "mouth_dark": "#08160D",
+    "tongue": "#B6F5CE"
   },
   "brightness": {
     "contour": 3.0,

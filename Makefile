@@ -17,7 +17,7 @@ run:
 ## -- client examples --------------------------------------------------------
 
 emotion-anger:
-	$(PY) client.py emotion anger
+	$(PY) client.py emotion disgust
 
 emotion-joy:
 	$(PY) client.py emotion joy

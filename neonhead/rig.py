@@ -52,22 +52,25 @@ for _letters, _shape in (
 NEUTRAL: Dict[str, float] = {
     # rings
     "ring_spread": 1.00, "ring_tilt": 0.0,
-    # eyes
+    # eyes (per-eye eye_h_l/_r offsets stack on the shared eye_h — that's
+    # what lets one eye go wide while the other squints, e.g. skepticism)
     "eye_h": 1.00, "eye_slant": 0.0, "eye_gaze_x": 0.0, "eye_gaze_y": 0.0,
     "eye_w": 1.00, "eye_dead": 0.0, "eye_dart": 0.0,
+    "eye_h_l": 0.0, "eye_h_r": 0.0, "monocle": 0.0, "eye_angry": 0.0,
     # brows (left / right kept separate — asymmetry is the cheapest nuance)
     "brow_y_l": 0.0, "brow_y_r": 0.0,
     "brow_tilt_l": 0.0, "brow_tilt_r": 0.0,
     "brow_bend_l": 0.0, "brow_bend_r": 0.0,
     # mouth
     "mouth_ap": 0.0, "mouth_w": 0.50, "mouth_curve": 0.05, "mouth_smile": 0.0,
-    "mouth_open": 0.0, "mouth_narrow": 0.0,
+    "mouth_open": 0.0, "mouth_narrow": 0.0, "mouth_tilt": 0.0, "mouth_saw": 0.0,
     # idle
     "blink_rate": 1.0,
     # orbit / core
     "orbit_r": 0.0, "orbit_speed": 1.0, "core_glow": 1.0, "orbit_still": 0.0,
     # global
-    "head_yaw": 0.0, "head_pitch": 0.0, "glow_gain": 0.0, "zzz": 0.0,
+    "head_yaw": 0.0, "head_pitch": 0.0, "head_tilt": 0.0,
+    "glow_gain": 0.0, "zzz": 0.0, "shake": 0.0, "sweat": 0.0, "tongue": 0.0,
 }
 
 
@@ -236,6 +239,10 @@ class Rig:
         p["ring_spread"] += 0.06 * rms + breath
         p["ring_tilt"] += 4.0 * f0 + math.sin(self.t * 0.17) * 2.0
         p["core_glow"] = 0.30 + 0.70 * rms + 0.25 * emo.get("glow_gain", 0.0)
+        # eye_h_base: pre-blink height, for anything that shouldn't jump
+        # around on every blink (the monocle ring — it sits on the socket,
+        # not the eyelid)
+        p["eye_h_base"] = p["eye_h"]
         p["eye_h"] = max(0.02, p["eye_h"] * (1.0 - blink) + 0.02 * blink)
         p["eye_gaze_x"] += math.sin(self.t * 0.13) * 0.35 + math.sin(self.t * 0.41) * 0.1
         dart = emo.get("eye_dart", 0.0)
@@ -245,8 +252,24 @@ class Rig:
             p["eye_gaze_x"] += dart * math.copysign(1.0, math.sin(self.t * 6.0))
         p["brow_y_l"] += max(-0.6, min(0.9, f0 * 0.5))
         p["brow_y_r"] += max(-0.6, min(0.9, f0 * 0.5))
-        p["head_yaw"] = yaw * sway
+        # head_yaw itself is idle-sway-owned (same reason mouth_ap is
+        # viseme-owned), so a cocked-head pose needs its own additive
+        # channel rather than being overwritten here
+        p["head_yaw"] = yaw * sway + emo.get("head_tilt", 0.0)
         p["head_pitch"] = pitch * sway
+
+        # shake: high-frequency judder on top of the slow idle sway — the
+        # manga "vibrating in fear/cold" tell. Two mutually-irrational
+        # frequencies so it doesn't read as a metronomic wobble. Amplitude
+        # is boosted to survive the per-frame smoothing below, which acts
+        # as a low-pass filter and would otherwise flatten anything this
+        # fast almost to nothing.
+        shake = emo.get("shake", 0.0)
+        if shake:
+            p["head_yaw"] += shake * 0.14 * (
+                math.sin(self.t * 47.0) + math.sin(self.t * 71.0 + 1.1)) * 0.5
+            p["head_pitch"] += shake * 0.10 * (
+                math.sin(self.t * 59.0 + 0.4) + math.sin(self.t * 83.0)) * 0.5
 
         # gesture: a few cycles of head motion on one axis, eased in/out so
         # it doesn't snap on top of the idle sway
