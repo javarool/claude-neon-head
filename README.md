@@ -1,4 +1,4 @@
-# claude-neonhead
+# Claude Neon Head
 
 A procedural talking head: three rotating rings, a neon contour, clipped
 eyes with sclera and pupil, brows, a mouth with teeth, and a planet orbiting
