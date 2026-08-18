@@ -34,7 +34,7 @@ commands (one JSON object per UDP datagram, or per line over TCP)
 
 emotions: """ + ", ".join(EMOTIONS) + """
 gestures: """ + ", ".join(GESTURES) + """
-keys: left/right browse emotions, tab demo (cycles every emotion), y/n gestures,
+keys: left/right browse emotions, tab demo (cycles every emotion), y/n/f gestures,
       space test phrase, c clear, esc quit
 """
 
@@ -207,6 +207,8 @@ class App:
             self.handle({"type": "gesture", "name": "yes"})
         elif key == glfw.KEY_N:
             self.handle({"type": "gesture", "name": "no"})
+        elif key == glfw.KEY_F:
+            self.handle({"type": "gesture", "name": "flip"})
         elif key in (glfw.KEY_LEFT, glfw.KEY_RIGHT):
             # more emotions than number keys, and digits get in the way of
             # typing over the same terminal — browse instead of hotkey

@@ -50,19 +50,25 @@ always interpolated, no command can snap the face.
 {"type": "quit"}
 ```
 
-Emotions: `neutral`, `interest`, `joy`, `anger`, `doubt`, `anxiety`, `sad`,
-`fear`, `disgust`, `surprise`, `shame`, `dead`, `sleep`. Each is described in its own file in
-`neonhead/emotions/` — a new file there is immediately picked up into the
-emotion list and the demo cycle, with no edits elsewhere.
+Emotions: `neutral`, `joy`, `anger`, `doubt`, `anxiety`, `sad`, `fear`,
+`disgust`, `surprise`, `shame`, `dead`, `sleep`, `focus`, `laugh_to_tears`,
+`triumph`. Each is described in its own file in `neonhead/emotions/` — a
+new file there is immediately picked up into the emotion list and the demo
+cycle, with no edits elsewhere.
 
 `demo` cycles through every emotion in `neonhead/emotions/`, `hold_s`
 seconds each (2 by default), until a `demo` with `"on": false` arrives, any
 other `emotion` command, or `clear`.
 
-Gestures are short animations, not a static pose: `yes` (nod, 3 cycles) and
-`no` (shake, 3 cycles), self-clearing on completion. They live in
+Gestures are short animations, not a static pose: `yes` (nod, 3 cycles),
+`no` (shake, 3 cycles), `hello`/`shrug`, and `flip` (spins the whole head
+180° and back over 1s), self-clearing on completion. They live in
 `neonhead/gestures/`, the same way — a new file there is immediately
-available by name.
+available by name. A gesture layers on top of whatever emotion (and
+prosody/visemes) is already active rather than replacing it — e.g. `emotion
+triumph` then `gesture flip` plays the flip while the triumph pose (glasses,
+brows, glow) keeps holding underneath; the gesture just self-clears after
+its cycles while the emotion persists.
 
 Visemes: `X` silence, `A` m/b/p, `B` s/z/t/d/n/k/g/h/ts/ch/sh/shch/y/i,
 `C` e, `D` a, `E` o, `F` u, `G` f/v, `H` l/r.

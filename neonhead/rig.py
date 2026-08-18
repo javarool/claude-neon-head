@@ -57,6 +57,7 @@ NEUTRAL: Dict[str, float] = {
     "eye_h": 1.00, "eye_slant": 0.0, "eye_gaze_x": 0.0, "eye_gaze_y": 0.0,
     "eye_w": 1.00, "eye_dead": 0.0, "eye_dart": 0.0,
     "eye_h_l": 0.0, "eye_h_r": 0.0, "monocle": 0.0, "eye_angry": 0.0,
+    "eye_oval": 0.0,
     # brows (left / right kept separate — asymmetry is the cheapest nuance)
     "brow_y_l": 0.0, "brow_y_r": 0.0,
     "brow_tilt_l": 0.0, "brow_tilt_r": 0.0,
@@ -64,13 +65,24 @@ NEUTRAL: Dict[str, float] = {
     # mouth
     "mouth_ap": 0.0, "mouth_w": 0.50, "mouth_curve": 0.05, "mouth_smile": 0.0,
     "mouth_open": 0.0, "mouth_narrow": 0.0, "mouth_tilt": 0.0, "mouth_saw": 0.0,
+    "mouth_oval": 0.0,
     # idle
     "blink_rate": 1.0,
     # orbit / core
     "orbit_r": 0.0, "orbit_speed": 1.0, "core_glow": 1.0, "orbit_still": 0.0,
     # global
-    "head_yaw": 0.0, "head_pitch": 0.0, "head_tilt": 0.0,
+    "head_yaw": 0.0, "head_pitch": 0.0, "head_tilt": 0.0, "head_lift": 0.0,
+    # unlike head_yaw/head_pitch (screen-space offsets, small ~0.02-0.09
+    # fractions of R), head_roll is a genuine rotation in radians of the
+    # whole rendered frame around its centre — geometry.build applies it
+    # as a final post-process step, not a per-feature offset
+    "head_roll": 0.0,
     "glow_gain": 0.0, "zzz": 0.0, "shake": 0.0, "sweat": 0.0, "tongue": 0.0,
+    "head_scale": 1.0, "head_stretch": 1.0, "sausages": 0.0, "hearts": 0.0,
+    "mouth_grin": 0.0, "mouth_grin_scale": 1.0, "mouth_grin_teeth": 1.0,
+    "mouth_grin_width": 1.0, "tears": 0.0, "bob": 0.0, "blush": 0.0,
+    "mouth_oval_scale": 1.0, "mouth_oval_tint": 0.0, "exclaim": 0.0,
+    "pupil_scale": 1.0, "sunglasses": 0.0, "brow_wink": 0.0, "horns": 0.0,
 }
 
 
@@ -111,6 +123,11 @@ class Rig:
         self._emotion_t = 1.0
         self._emotion_dur = 0.001
         self.emotion_name = "neutral"
+        # unbounded seconds since the current emotion was set — unlike
+        # _emotion_t (which saturates at 1.0 after blend_ms and is what
+        # CHANNEL_SPEED reads), this keeps counting, for tells that need
+        # to ease in slower than the blend itself (e.g. shame's blush)
+        self.emotion_age = 0.0
 
         # prosody inputs, written by the speech player or `level` commands
         self.rms = 0.0
@@ -145,6 +162,7 @@ class Rig:
         self._emotion_dur = max(0.001, (blend_ms if blend_ms is not None
                                         else self.cfg.get("speech.emotion_blend_ms", 260)) / 1000.0)
         self._emotion_t = 0.0
+        self.emotion_age = 0.0
         return True
 
     def set_gesture(self, name: str):
@@ -152,8 +170,19 @@ class Rig:
         g = GESTURES.get(key)
         if g is None:
             return False
-        self.gesture = {"axis": g["axis"], "amp": g["amp"], "period": g["period_s"],
-                        "dur": g["cycles"] * g["period_s"], "t": 0.0}
+        if g["rise_s"] is not None:
+            # rise/hold/fall shape (see gestures/__init__.py) — eases up
+            # to amp, sits there, eases back, rather than oscillating
+            self.gesture = {
+                "axis": g["axis"], "amp": g["amp"], "mode": "hold",
+                "rise": max(0.001, g["rise_s"]), "hold": g["hold_s"],
+                "fall": max(0.001, g["fall_s"]),
+                "dur": g["rise_s"] + g["hold_s"] + g["fall_s"], "t": 0.0,
+            }
+        else:
+            self.gesture = {"axis": g["axis"], "amp": g["amp"], "mode": "osc",
+                            "period": g["period_s"],
+                            "dur": g["cycles"] * g["period_s"], "t": 0.0}
         return True
 
     def set_viseme(self, shape: str):
@@ -174,6 +203,7 @@ class Rig:
 
     def update(self, dt: float):
         self.t += dt
+        self.emotion_age += dt
         idle = self.cfg["idle"]
 
         # emotion cross-fade: each channel runs its own timeline, so brows can
@@ -256,7 +286,10 @@ class Rig:
         # viseme-owned), so a cocked-head pose needs its own additive
         # channel rather than being overwritten here
         p["head_yaw"] = yaw * sway + emo.get("head_tilt", 0.0)
-        p["head_pitch"] = pitch * sway
+        # head_pitch is owned the same way — head_lift is a static chin-up
+        # offset (triumph: "face sits a bit higher, proud"), separate from
+        # bob's oscillation below
+        p["head_pitch"] = pitch * sway + emo.get("head_lift", 0.0)
 
         # shake: high-frequency judder on top of the slow idle sway — the
         # manga "vibrating in fear/cold" tell. Two mutually-irrational
@@ -271,13 +304,38 @@ class Rig:
             p["head_pitch"] += shake * 0.10 * (
                 math.sin(self.t * 59.0 + 0.4) + math.sin(self.t * 83.0)) * 0.5
 
-        # gesture: a few cycles of head motion on one axis, eased in/out so
-        # it doesn't snap on top of the idle sway
+        # bob: slow vertical-only nod, laughing-with-your-whole-body
+        # rather than shake's fast judder — a single low frequency, pitch
+        # only (no yaw), so it reads as breathing/laughing, not vibrating
+        bob = emo.get("bob", 0.0)
+        if bob:
+            p["head_pitch"] += bob * 0.12 * math.sin(self.t * 12.6)
+
+        # brow_wink: one brow drifting up/down on a slow, lone sine — a
+        # cocky idle "wink" tell rather than a one-shot gesture, so it
+        # keeps going for as long as the emotion holds
+        wink = emo.get("brow_wink", 0.0)
+        if wink:
+            p["brow_y_r"] += wink * 0.35 * math.sin(self.t * 2.2)
+
+        # gesture: a short animation on one axis, self-clearing. Two
+        # shapes — see gestures/__init__.py for why a gesture picks one:
+        # "osc" oscillates through amp each cycle (nod/shake); "hold"
+        # eases up to amp, sits there, eases back (flip).
         if self.gesture is not None:
             g = self.gesture
             g["t"] += dt
             if g["t"] >= g["dur"]:
                 self.gesture = None
+            elif g["mode"] == "hold":
+                t = g["t"]
+                if t < g["rise"]:
+                    v = _smoothstep(t / g["rise"])
+                elif t < g["rise"] + g["hold"]:
+                    v = 1.0
+                else:
+                    v = 1.0 - _smoothstep((t - g["rise"] - g["hold"]) / g["fall"])
+                p[g["axis"]] += v * g["amp"]
             else:
                 edge = min(1.0, g["t"] / 0.12) * min(1.0, (g["dur"] - g["t"]) / 0.12)
                 p[g["axis"]] += math.sin(g["t"] / g["period"] * math.tau) * g["amp"] * edge

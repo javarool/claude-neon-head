@@ -2,7 +2,7 @@ VENV := venv
 PY   := $(VENV)/bin/python
 
 .PHONY: venv install run clear \
-        emotion-anger emotion-joy emotion-sad emotion-doubt emotion-anxiety emotion-interest emotion-neutral \
+        emotion-anger emotion-joy emotion-sad emotion-doubt emotion-anxiety emotion-neutral \
         say level speak
 
 venv:
@@ -17,7 +17,7 @@ run:
 ## -- client examples --------------------------------------------------------
 
 emotion-anger:
-	$(PY) client.py emotion disgust
+	$(PY) client.py emotion fear
 
 emotion-joy:
 	$(PY) client.py emotion joy
@@ -30,9 +30,6 @@ emotion-lol:
 
 emotion-anxiety:
 	$(PY) client.py emotion anxiety
-
-emotion-interest:
-	$(PY) client.py emotion interest
 
 emotion-neutral:
 	$(PY) client.py emotion neutral

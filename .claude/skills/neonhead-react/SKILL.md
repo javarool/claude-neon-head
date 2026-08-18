@@ -16,10 +16,17 @@ fire-and-forget interface — no python/venv needed:
 ```
 
 The full emotion vocabulary — pick exactly one per trigger, no others exist
-(`neonhead/emotions/*.py`): `anger, anxiety, disgust, doubt, fear, focus,
-interest, joy, laugh_to_tears, neutral, sad, shame, surprise, triumph`.
+(`neonhead/emotions/*.py`): `anger, anxiety, dead, disgust, doubt, fear,
+focus, joy, laugh_to_tears, neutral, sad, shame, sleep, surprise, triumph`.
 
-Gestures (`neonhead/gestures/*.py`): `yes, no, shrug, hello`.
+Gestures (`neonhead/gestures/*.py`): `yes, no, shrug, hello, flip` (flip
+spins the whole head 180° and back over 1s).
+
+A gesture layers on top of whatever emotion is already active rather than
+replacing it — set the emotion first (it persists), then fire the gesture
+on top; the gesture self-clears after its cycles while the emotion keeps
+holding underneath. E.g. `emotion triumph` then `gesture flip` plays the
+flip while triumph's pose (glasses, brows, glow) stays through it.
 
 These are one-way UDP sends — if neonhead isn't running, they're silently
 dropped, no error. No status check needed first (run
@@ -45,7 +52,7 @@ point of this skill firing often, not sparingly. The judgment call is only
 | Panics | `fear` | 0.6–0.8 |
 | Types in ALL CAPS | `surprise` or `anger`, depending on tone | 0.5–0.7 |
 | Is feeling lazy | `gesture shrug` | — |
-| Asks for magic | `interest` | 0.5–0.7 |
+| Asks for magic | `surprise` | 0.5–0.7 |
 | Uses slang | `joy` | 0.4–0.6 |
 | Jokes around, something genuinely funny/absurd lands | `laugh_to_tears` (alias `lol`) | 0.8–1.0 |
 | Is confused, genuinely uncertain between two approaches | `doubt` | 0.4–0.6 |

@@ -43,7 +43,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/vadim/WORK_DIR/Mimir/claude-neonhead/.claude/skills/neonhead-react/neonhead.sh emotion interest 0.5 && /home/vadim/WORK_DIR/Mimir/claude-neonhead/.claude/skills/neonhead-react/neonhead.sh say \"okay, thinking\"",
+            "command": "/home/vadim/WORK_DIR/Mimir/claude-neonhead/.claude/skills/neonhead-react/neonhead.sh emotion focus 0.5 && /home/vadim/WORK_DIR/Mimir/claude-neonhead/.claude/skills/neonhead-react/neonhead.sh say \"okay, thinking\"",
             "timeout": 5,
             "async": true
           }
